@@ -1,0 +1,10 @@
+group = "com.rspsi"
+version = "1.0"
+
+repositories {
+
+}
+
+dependencies {
+}
+

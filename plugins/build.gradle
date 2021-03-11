@@ -1,0 +1,54 @@
+subprojects {
+    apply plugin: 'kotlin-kapt'
+
+
+
+    jar {
+        manifest {
+            attributes 'Plugin-Class': "com.rspsi.plugin.RS2ModelPlugin",
+                    'Plugin-Id': "rs2-model-plugin",
+                    'Plugin-Version': "${project.version}"
+        }
+
+    }
+
+    task copyClasses(type: Copy){
+        from jar.inputs.files
+        exclude("META-INF/**")
+        include("META-INF/extensions.idx")
+        exclude("plugin.properties")
+        into "$buildDir/plugin-flat/classes"
+    }
+
+    task copyResources(type: Copy){
+        from sourceSets.main.resources
+        into "$buildDir/plugin-flat/"
+    }
+
+    task copyLibs(type: Copy){
+        from configurations.compile
+        into "$buildDir/plugin-flat/libs"
+    }
+
+    task copyExt(type: Copy){
+        from jar.inputs.files
+        include("META-INF/**")
+        into "$buildDir/plugin-flat/"
+    }
+
+
+    task plugin(type: Jar){
+        from("$buildDir/plugin-flat/")
+    }
+
+    task assemblePlugin(type: Copy) {
+        from plugin
+        into pluginsDir
+    }
+    assemblePlugin.dependsOn(copyClasses, copyResources, copyLibs, copyExt)
+    build.dependsOn(assemblePlugin)
+    dependencies {
+        implementation project(":core")
+        kapt group: 'org.pf4j', name: 'pf4j', version: '3.4.1'
+    }
+}

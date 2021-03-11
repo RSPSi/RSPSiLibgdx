@@ -1,0 +1,8 @@
+include 'desktop', 'core', 'plugins'
+file('plugins').eachDir { sub ->
+    if(sub.name != "build") {
+
+        include "plugins:$sub.name"
+    }
+}
+
