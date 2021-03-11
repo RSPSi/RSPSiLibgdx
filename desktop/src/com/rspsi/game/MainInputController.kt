@@ -52,7 +52,6 @@ class MainInputController(camera: Camera) : FirstPersonCameraController(camera) 
     override fun touchDown(screenX: Int, screenY: Int, pointer: Int, button: Int): Boolean {
         return if(!gameUI.gameStage.touchDown(screenX, screenY, pointer, button)){
 
-                gameScreen.fboUpdateRequested = true
                 true
             } else
                 super.touchDown(screenX, screenY, pointer, button)
@@ -159,10 +158,6 @@ class MainInputController(camera: Camera) : FirstPersonCameraController(camera) 
                 //gameScreen.dirty = true
             }
             containsKey(Input.Keys.K, true) {
-                gameScreen.drawFBO = !gameScreen.drawFBO
-                info {
-                    "Drawing fbo: ${gameScreen.drawFBO}"
-                }
                // gameScreen.dirty = true
             }
             containsKey(Input.Keys.M, true) {
