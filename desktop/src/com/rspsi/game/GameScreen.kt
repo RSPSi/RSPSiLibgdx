@@ -4,24 +4,28 @@ import com.badlogic.ashley.core.Engine
 import com.badlogic.ashley.core.Entity
 import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.Screen
-import com.badlogic.gdx.files.FileHandle
 import com.badlogic.gdx.graphics.*
 import com.badlogic.gdx.graphics.g2d.BitmapFont
 import com.badlogic.gdx.graphics.g2d.Sprite
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
-import com.badlogic.gdx.graphics.g3d.*
+import com.badlogic.gdx.graphics.g3d.Environment
+import com.badlogic.gdx.graphics.g3d.Material
+import com.badlogic.gdx.graphics.g3d.ModelBatch
+import com.badlogic.gdx.graphics.g3d.ModelCache
 import com.badlogic.gdx.graphics.g3d.attributes.BlendingAttribute
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight
-import com.badlogic.gdx.graphics.g3d.utils.DefaultRenderableSorter
 import com.badlogic.gdx.graphics.g3d.utils.DefaultShaderProvider
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder
-import com.badlogic.gdx.graphics.glutils.FrameBuffer
+import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.math.collision.BoundingBox
 import com.badlogic.gdx.physics.bullet.Bullet
+import com.badlogic.gdx.physics.bullet.DebugDrawer
 import com.badlogic.gdx.physics.bullet.collision.*
 import com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld
+import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody
 import com.badlogic.gdx.physics.bullet.dynamics.btSequentialImpulseConstraintSolver
+import com.badlogic.gdx.physics.bullet.linearmath.btIDebugDraw
 import com.badlogic.gdx.utils.ScreenUtils
 import com.displee.cache.CacheLibrary
 import com.displee.cache.ProgressListener
@@ -30,17 +34,35 @@ import com.rspsi.ext.*
 import com.rspsi.opengl.PixelBufferObject
 import ktx.app.KtxGame
 import ktx.app.KtxScreen
-import ktx.ashley.*
+import ktx.ashley.entity
+import ktx.ashley.has
+import ktx.ashley.mapperFor
+import ktx.ashley.with
 import ktx.async.KtxAsync
 import ktx.graphics.use
 import ktx.log.info
+import ktx.math.div
+import ktx.math.plus
+import ktx.math.times
 import ktx.scene2d.Scene2DSkin
 import space.earlygrey.shapedrawer.ShapeDrawer
 import java.io.File
+import kotlin.collections.List
+import kotlin.collections.associateWith
+import kotlin.collections.filterNot
+import kotlin.collections.forEach
+import kotlin.collections.forEachIndexed
+import kotlin.collections.map
+import kotlin.collections.mutableListOf
+import kotlin.collections.mutableMapOf
+import kotlin.collections.plus
+import kotlin.collections.set
+import kotlin.collections.toTypedArray
 
 
 open class GameScreen : KtxScreen {
 
+    var rayCastRequest = false
     var mapBoundary: BoundingBox? = null
     var visiblePlane = 0
 
@@ -52,6 +74,8 @@ open class GameScreen : KtxScreen {
     lateinit var constraintSolver: btSequentialImpulseConstraintSolver
     lateinit var dynamicsWorld: btDiscreteDynamicsWorld
     lateinit var contactListener: MyContactListener
+
+    lateinit var debugDrawer: DebugDrawer
 
     val engine: Engine = context.inject()
     val spriteBatch = SpriteBatch()
@@ -368,9 +392,15 @@ open class GameScreen : KtxScreen {
         broadphase = btDbvtBroadphase()
         constraintSolver = btSequentialImpulseConstraintSolver()
         dynamicsWorld = btDiscreteDynamicsWorld(dispatcher, broadphase, constraintSolver, collisionConfig)
-        dynamicsWorld.gravity = ImmutableVector3(0, 10f, 0).toMutable()
+        dynamicsWorld.gravity = ImmutableVector3(0, -10f, 0).toMutable()
 
         contactListener = MyContactListener(compoundModels)
+
+        rayTestCB = ClosestRayResultCallback(ImmutableVector3.ZERO.toMutable(), ImmutableVector3.Z.toMutable())
+        debugDrawer = DebugDrawer()
+        dynamicsWorld.debugDrawer = debugDrawer
+        debugDrawer.debugMode = btIDebugDraw.DebugDrawModes.DBG_DrawAabb
+
     }
 
     fun setup() {
