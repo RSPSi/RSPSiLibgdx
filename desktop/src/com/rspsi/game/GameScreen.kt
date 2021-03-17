@@ -205,6 +205,31 @@ open class GameScreen : KtxScreen {
             }
         }
 
+
+        debugDrawer.begin(camera)
+
+        keyInputController?.apply {
+           // dynamicsWorld.debugDrawWorld()
+            if (mouseMoved && !dragging) {
+                hoverId = raycastResult(mouseX, mouseY)
+                info {
+                    "Hover id is $hoverId"
+                }
+                rayCastRequest = false
+
+                mouseMoved = false
+            }
+        }
+
+        /*rayTestCB?.apply {
+            var rayFrom = Vector3()
+            var rayTo = Vector3()
+            getRayFromWorld(rayFrom)
+            getRayToWorld(rayTo)
+            dynamicsWorld.debugDrawer.drawLine(rayFrom.toImmutable(), rayTo.toImmutable(), ImmutableColor.PURPLE)
+        }*/
+        debugDrawer.end()
+
         spriteBatch.use {
 
             font.draw(
@@ -231,30 +256,50 @@ open class GameScreen : KtxScreen {
 
         gameUI?.draw(delta)
 
-        keyInputController?.apply {
-            if (mouseMoved && !dragging) {
-                hoverId = raycastResult(mouseX, mouseY)
+
+    }
 
 
-                mouseMoved = false
+
+    var rayTestCB: ClosestRayResultCallback? = null
+    fun raycastResult(mouseX: Int, mouseY: Int): Int {
+
+
+
+        var ray = camera.getPickRay(mouseX.toFloat(), mouseY.toFloat())//TODO Make ImmutableRay
+        var rayFrom = ray.origin.cpy()
+        var rayTo = (ray.direction.cpy() * 50f) + rayFrom
+
+        rayTestCB?.apply {
+            collisionObject = null
+            closestHitFraction = 1f
+            setRayFromWorld(rayFrom)
+            setRayToWorld(rayTo)
+
+            dynamicsWorld.collisionWorld.rayTest(rayFrom, rayTo, this)
+            if (hasHit()) {
+                var obj = collisionObject
+                //if (!obj.isStaticOrKinematicObject) {
+                    var body = obj as? btRigidBody
+                    body?.apply {
+                        activate()
+                        applyCentralImpulse(ray.direction / 20f)
+                        return obj.userValue
+                    }
+               // }
             }
         }
 
-    }
-
-    fun raycastResult(mouseX: Int, mouseY: Int): Int {
-        var objectType = -1
-
-        return 0
+            return -1
     }
 
 
 
-    var frustrumCulling = false
+    var frustumCulling = false
     private var position = ImmutableVector3()
     protected fun isVisible(cam: Camera, instance: RenderableGameObject): Boolean {
 
-        if (!frustrumCulling)
+        if (!frustumCulling)
             return true
         instance.transform.getTranslation()
         position += instance.boundingBox.getCenter()

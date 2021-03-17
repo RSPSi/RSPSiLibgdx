@@ -2,12 +2,14 @@ package com.rspsi.game
 
 import com.badlogic.ashley.core.Entity
 import com.badlogic.gdx.graphics.g3d.*
+import com.badlogic.gdx.graphics.g3d.model.Node
 import com.badlogic.gdx.math.Matrix4
 import com.badlogic.gdx.math.Quaternion
 import com.badlogic.gdx.math.collision.BoundingBox
 import com.badlogic.gdx.physics.bullet.Bullet.obtainStaticNodeShape
 import com.badlogic.gdx.physics.bullet.collision.Collision
 import com.badlogic.gdx.physics.bullet.collision.btCollisionObject
+import com.badlogic.gdx.physics.bullet.collision.btCollisionShape
 import com.badlogic.gdx.physics.bullet.collision.btSphereShape
 import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody
 import com.badlogic.gdx.utils.Disposable
@@ -92,6 +94,7 @@ open class RenderableGameObject : RenderableProvider, Disposable {
     }
 
     lateinit var constructInfo: btRigidBody.btRigidBodyConstructionInfo
+    var collisionShape: btCollisionShape? = null
     var motionState: MyMotionState? = null
     var renderables = GdxArray<Renderable>()
 
@@ -108,27 +111,32 @@ open class RenderableGameObject : RenderableProvider, Disposable {
             it.getRenderables(pretransformed, simpleMeshPool)
         }
         pretransformed.forEach { renderable ->
-
             renderable.worldTransform.set(transform)
              renderable.material.set(PickableAttribute(entityIndex))
         }
+        collisionShape = try {
+            obtainStaticNodeShape(modelInstances.flatMap { it.nodes.map { node ->
+                val cpy = node.copy().apply {
+                    parts.removeAll { it.meshPart.mesh.numIndices <= 0 || it.meshPart.mesh.numVertices <= 0 }
+                }
 
-        var collisionShape = obtainStaticNodeShape(modelInstances.flatMap { it -> it.nodes.filter { it -> it.parts.size > 0 && it.parts.all { it.meshPart.size > 0 }} }.toGdxArray())
-        if(collisionShape == null) {
-            collisionShape = btSphereShape(0.1f)
-            info {
-                "Failed to get static node shape for $this"
-            }
+                if(cpy.parts.size > 0 )
+                    cpy
+                else null
+            }.filterNotNull() }.toGdxArray())
+        } catch(ex: Exception) {
+            ex.printStackTrace()
+            btSphereShape(0.1f)
         }
-        collisionShape.calculateLocalInertia(weight, ImmutableVector3(0f, 10f, 10f).toMutable())
+        collisionShape?.calculateLocalInertia(weight, ImmutableVector3(0f, 10f, 10f).toMutable())
 
         motionState = MyMotionState(renderables)
         constructInfo = btRigidBody.btRigidBodyConstructionInfo(weight, motionState, collisionShape,  ImmutableVector3(0f, 10f, 10f).toMutable())
-        rigidBody = btRigidBody(constructInfo)
-        rigidBody?.apply {
+        rigidBody = btRigidBody(constructInfo).apply {
             proceedToTransform(transform)
-            userData = entityIndex
+            userValue = entityIndex
             collisionFlags = collisionFlags or btCollisionObject.CollisionFlags.CF_CUSTOM_MATERIAL_CALLBACK
+            this.activate()
         }
         renderables.addAll(pretransformed)
 
