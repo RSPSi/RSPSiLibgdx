@@ -205,6 +205,7 @@ open class RS2Model(val id: Int, val header: RS2ModelHeader) {
         return ModelBuilder().use { modelBuilder ->
 
 
+            if(faces.any { it.type >= 0 && it.textureId < 0 && it.transparency >= 1f }) {
                 val nonTextureMeshBuilder = modelBuilder.part(
                     "nonTexturedFaces",
                     GL20.GL_TRIANGLES,
@@ -225,9 +226,10 @@ open class RS2Model(val id: Int, val header: RS2ModelHeader) {
                         VertexAttribute.Normal()
                     )
                 )
+            }
 
 
-
+            if(faces.any { it.type >= 0 && it.textureId < 0 && it.transparency < 1f }) {
                 val alphaFaces = modelBuilder.part(
                     "alphaFaces",
                     GL20.GL_TRIANGLES,
@@ -249,6 +251,7 @@ open class RS2Model(val id: Int, val header: RS2ModelHeader) {
                         VertexAttribute.Normal()
                     )
                 )
+            }
 
             val textureIds = faces
                 .filter { it.textureId >= 0 }
