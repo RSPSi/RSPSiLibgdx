@@ -431,3 +431,5 @@ class ImmutableColor(r: Float, g: Float, b: Float, a: Float = 1f) {
 fun Color.toImmutable(): ImmutableColor = ImmutableColor(r, g, b, a)
 
 infix fun ImmutableColor.withAlpha(alpha: Float) = ImmutableColor(r, g, b, alpha)
+
+fun ImmutableColor.vec3(): ImmutableVector3 = ImmutableVector3(r, g, b)
