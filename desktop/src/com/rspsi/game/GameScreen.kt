@@ -237,7 +237,8 @@ open class GameScreen : KtxScreen {
             }
 
             modelBatch.render(
-                modelClusters/*.filter { it.modelInstances.values.any { isVisible(it) } }*/,
+                compoundModels
+                /*modelClusters.filter { it.modelInstances.values.any { isVisible(it) } }*/,
                 globalEnvironment
             )
 
@@ -274,16 +275,20 @@ open class GameScreen : KtxScreen {
             dynamicsWorld.debugDrawer.drawLine(rayFrom.toImmutable(), rayTo.toImmutable(), ImmutableColor.PURPLE)
         }
 
-        // dynamicsWorld.debugDrawWorld()
+// dynamicsWorld.debugDrawWorld()
         if (hoverId in compoundModels.indices) {
             compoundModels[hoverId].let {
-                /*dynamicsWorld.debugDrawObject(
-                    it.transform,
-                    it.complexCollisionShape,
-                    ImmutableColor.GREEN.vec3().toMutable()
-                )*/
-                // info { "Attempting to draw bounding sphere ${it.boundingSphere}"}
-                  dynamicsWorld.debugDrawer.drawSphere(it.boundingSphere.let{ it.origin + it.position}.toMutable(), it.boundingSphere.radius, ImmutableColor.RED.vec3().toMutable())
+/*dynamicsWorld.debugDrawObject(
+    it.transform,
+    it.complexCollisionShape,
+    ImmutableColor.GREEN.vec3().toMutable()
+)*/
+// info { "Attempting to draw bounding sphere ${it.boundingSphere}"}
+                dynamicsWorld.debugDrawer.drawSphere(
+                    it.boundingSphere.let { it.origin + it.position }.toMutable(),
+                    it.boundingSphere.radius,
+                    ImmutableColor.RED.vec3().toMutable()
+                )
                 debugDrawer.drawBox(
                     it.transform.getTranslation().toMutable() + it.boundingBox.min,
                     it.transform.getTranslation().toMutable() + it.boundingBox.max,
@@ -296,22 +301,22 @@ open class GameScreen : KtxScreen {
                 )
             }
         } else if (hoverId - Short.MAX_VALUE in terrainInstances.indices) {
-            /*terrainInstances[hoverId - Short.MAX_VALUE].let { gameObject ->
-                dynamicsWorld.debugDrawObject(
-                    gameObject.transform,
-                    gameObject.complexCollisionShape,
-                    ImmutableColor.GREEN.vec3().toMutable()
-                )
-            }*/
+/*terrainInstances[hoverId - Short.MAX_VALUE].let { gameObject ->
+dynamicsWorld.debugDrawObject(
+    gameObject.transform,
+    gameObject.complexCollisionShape,
+    ImmutableColor.GREEN.vec3().toMutable()
+)
+}*/
         }
 
-        /* terrainInstances.forEach { gameObject ->
-             dynamicsWorld.debugDrawObject(
-                 gameObject.transform,
-                 gameObject.collisionShape,
-                 ImmutableColor.GREEN.vec3().toMutable()
-             )
-         }*/
+/* terrainInstances.forEach { gameObject ->
+dynamicsWorld.debugDrawObject(
+ gameObject.transform,
+ gameObject.collisionShape,
+ ImmutableColor.GREEN.vec3().toMutable()
+)
+}*/
         debugDrawer.end()
 
         spriteBatch.use {
@@ -360,7 +365,7 @@ open class GameScreen : KtxScreen {
 
             dynamicsWorld.rayTest(rayFrom, rayTo, this)
             if (hasHit()) {
-                //if (!obj.isStaticOrKinematicObject) {
+//if (!obj.isStaticOrKinematicObject) {
                 var body = collisionObject as? btRigidBody
                 body?.apply {
                     if (rayCastRequest) {
@@ -369,7 +374,7 @@ open class GameScreen : KtxScreen {
                     }
                     return collisionObject.userValue
                 }
-                // }
+// }
             }
         }
 
@@ -437,7 +442,7 @@ open class GameScreen : KtxScreen {
 
         highlightedEnvironment.set(ColorAttribute(ColorAttribute.AmbientLight, 0f, 0f, 0.6f, 0.5f))
         highlightedEnvironment.set(BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.5f))
-        //globalEnvironment.add(shadowLight)
+//globalEnvironment.add(shadowLight)
 
     }
 
@@ -673,9 +678,9 @@ class GameView : KtxGame<Screen>() {
 
         val progressListener = object : ProgressListener {
             override fun notify(progress: Double, message: String?) {
-                // info {
-                //    "$progress $message"
-                //}
+// info {
+//    "$progress $message"
+//}
             }
         }
         val cachePath = "C:/Users/James/Desktop/RS/193/cache/"
