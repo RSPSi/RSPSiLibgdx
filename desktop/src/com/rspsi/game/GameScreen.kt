@@ -11,7 +11,6 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.g3d.Environment
 import com.badlogic.gdx.graphics.g3d.Material
 import com.badlogic.gdx.graphics.g3d.ModelBatch
-import com.badlogic.gdx.graphics.g3d.ModelCache
 import com.badlogic.gdx.graphics.g3d.attributes.BlendingAttribute
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight
@@ -21,7 +20,10 @@ import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.math.collision.BoundingBox
 import com.badlogic.gdx.physics.bullet.Bullet
 import com.badlogic.gdx.physics.bullet.DebugDrawer
-import com.badlogic.gdx.physics.bullet.collision.*
+import com.badlogic.gdx.physics.bullet.collision.ClosestRayResultCallback
+import com.badlogic.gdx.physics.bullet.collision.btCollisionDispatcher
+import com.badlogic.gdx.physics.bullet.collision.btDbvtBroadphase
+import com.badlogic.gdx.physics.bullet.collision.btDefaultCollisionConfiguration
 import com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld
 import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody
 import com.badlogic.gdx.physics.bullet.dynamics.btSequentialImpulseConstraintSolver
@@ -31,33 +33,20 @@ import com.displee.cache.CacheLibrary
 import com.displee.cache.ProgressListener
 import com.kotcrab.vis.ui.VisUI
 import com.rspsi.ext.*
+import com.rspsi.game.BoundingSphere.Companion.intersects
 import com.rspsi.opengl.PixelBufferObject
 import ktx.app.KtxGame
 import ktx.app.KtxScreen
-import ktx.ashley.entity
-import ktx.ashley.has
-import ktx.ashley.mapperFor
-import ktx.ashley.with
+import ktx.ashley.*
+import ktx.assets.disposeSafely
 import ktx.async.KtxAsync
 import ktx.graphics.use
 import ktx.log.info
-import ktx.math.div
 import ktx.math.plus
 import ktx.math.times
 import ktx.scene2d.Scene2DSkin
 import space.earlygrey.shapedrawer.ShapeDrawer
 import java.io.File
-import kotlin.collections.List
-import kotlin.collections.associateWith
-import kotlin.collections.filterNot
-import kotlin.collections.forEach
-import kotlin.collections.forEachIndexed
-import kotlin.collections.map
-import kotlin.collections.mutableListOf
-import kotlin.collections.mutableMapOf
-import kotlin.collections.plus
-import kotlin.collections.set
-import kotlin.collections.toTypedArray
 
 
 open class GameScreen : KtxScreen {
@@ -73,7 +62,7 @@ open class GameScreen : KtxScreen {
     lateinit var broadphase: btDbvtBroadphase
     lateinit var constraintSolver: btSequentialImpulseConstraintSolver
     lateinit var dynamicsWorld: btDiscreteDynamicsWorld
-    lateinit var contactListener: MyContactListener
+    var contactListener: MyContactListener? = null
 
     lateinit var debugDrawer: DebugDrawer
 
@@ -102,29 +91,40 @@ open class GameScreen : KtxScreen {
 
     var font = BitmapFont()
     var dirty = false
-    var transparentObjects = ModelCache()
+    var transparentObjects = OpenModelCache()
     val compoundModels = mutableListOf<RenderableGameObject>()
 
+    val modelClusters = mutableListOf<GameObjectCluster>()
 
     fun updateModels() {
         if (dirty) {
             compoundModels.clear()
-            terrainInstances =
-                ((0 until 4).map { z -> RenderableGameObject(underlayEntities[z]) }
-                        + (0 until 4).map { z -> RenderableGameObject(overlayEntities[z]) }
-                        ).toTypedArray()
+            terrainInstances.clear()
 
-            dynamicsWorld.let {
-                terrainInstances.forEach { terrain ->
-                    terrain?.rigidBody?.apply {
-                        collisionFlags = collisionFlags or btCollisionObject.CollisionFlags.CF_CUSTOM_MATERIAL_CALLBACK
-                        contactCallbackFilter = 0
-                        contactCallbackFlag = Companion.GROUND_FLAG
-                        activationState = Collision.DISABLE_DEACTIVATION
-                        dynamicsWorld.addRigidBody(this)
+            terrainInstances.addAll(underlayEntities.map { RenderableGameObject(it) })
+            terrainInstances.addAll(overlayEntities.map { RenderableGameObject(it) })
+
+            terrainInstances.forEachIndexed { index, terrain ->
+                terrain.apply {
+                    buildRenderables()
+
+                    val rs2TileMapComponent = terrain.entity?.get(mapperFor<RS2TileMapComponent>())
+
+                    rs2TileMapComponent?.tileMap?.let { tileMap ->
+
+                        /*simpleBody?.apply {
+                            contactCallbackFilter = Companion.OBJECT_FLAG
+                            dynamicsWorld.addRigidBody(this)
+                        }*/
+                        complexBody?.apply {
+                            dynamicsWorld.addRigidBody(this)
+                        }
                     }
+
+                    entityIndex = Short.MAX_VALUE + index
                 }
             }
+
             val entities = engine.entities
                 .filterNot { it.has(mapperFor<RS2TileMapComponent>()) }
                 .associateWith { RenderableGameObject(it) }
@@ -132,24 +132,25 @@ open class GameScreen : KtxScreen {
 
 
             compoundModels.addAll(entities.values)
+            compoundModels.forEachApply { buildRenderables() }
+            CustomRenderableSorter.sort(camera, compoundModels)
             compoundModels.forEachIndexed { index, gameObject -> gameObject.entityIndex = index }
 
-            transparentObjects.use(camera) {
-                add(entities.values)
-            }
 
-            compoundModels.forEach {
-                it.rigidBody?.apply {
-                    info {
-                        "Adding rigid body to world!"
-                    }
+            compoundModels.forEachApply {
+
+                /*simpleBody?.apply {
+                    contactCallbackFlag = OBJECT_FLAG
                     dynamicsWorld.addRigidBody(this)
-                    contactCallbackFlag = Companion.OBJECT_FLAG
-                    contactCallbackFilter = Companion.GROUND_FLAG
+                }*/
+                complexBody?.apply {
+                    dynamicsWorld.addRigidBody(this)
                 }
             }
 
 
+
+            buildClusters()
 
 
             info { "Added ${compoundModels.size} entities to the render pipeline" }
@@ -159,6 +160,21 @@ open class GameScreen : KtxScreen {
         }
     }
 
+
+    fun buildClusters() {
+        compoundModels.forEach { gameObject ->
+            val cluster = modelClusters
+                .filter { gameObject.type in it.validTypes }
+                .firstOrNull { it.instances.values.any { it.boundingSphere.intersects(gameObject.boundingSphere) } }
+                ?: GameObjectCluster(camera, RS2Object.Types.getGroup(gameObject.type))
+
+            cluster.instances[gameObject.name] = gameObject
+            if (cluster !in modelClusters)
+                modelClusters.add(cluster)
+        }
+        info { "Clustered ${compoundModels.size} game objects into ${modelClusters.size} clusters!" }
+        modelClusters.forEachApply { update() }
+    }
 
     var cachedSprites = arrayOf<Sprite>()
 
@@ -180,7 +196,7 @@ open class GameScreen : KtxScreen {
         return cachedSprites
     }
 
-    var terrainInstances: Array<RenderableGameObject?> = arrayOfNulls(8)
+    val terrainInstances = mutableListOf<RenderableGameObject>()
     var underlayEntities: Array<Entity?> = arrayOfNulls(4)
     var overlayEntities: Array<Entity?> = arrayOfNulls(4)
 
@@ -191,17 +207,20 @@ open class GameScreen : KtxScreen {
     var hoverId = -1
     var backgroundColour = ImmutableColor.YELLOW
 
+    var angle = 90f
+    var speed = 90f
     override fun render(delta: Float) {
 
 
-        dynamicsWorld.stepSimulation(delta, 5, 1f / 60f)
+        //dynamicsWorld.stepSimulation(delta, 1, 1f / 30f)
+
         compoundModels.forEach { it.update() }
         keyInputController?.update()
 
         Gdx.gl.glViewport(0, 0, Gdx.graphics.width, Gdx.graphics.height)
         ScreenUtils.clear(backgroundColour.toMutable())
-        Gdx.gl.glFrontFace(GL20.GL_CCW)
-        Gdx.gl.glDisable(GL20.GL_CULL_FACE)
+        //Gdx.gl.glFrontFace(GL20.GL_CCW)
+        //Gdx.gl.glDisable(GL20.GL_CULL_FACE)
 
 
         updateModels()
@@ -213,17 +232,19 @@ open class GameScreen : KtxScreen {
 
 
             terrainInstances.forEach { terrainInstance ->
-                terrainInstance?.let {
-
-                    modelBatch.render(it, globalEnvironment)
-                }
+                terrainInstance.update()
+                modelBatch.render(terrainInstance, globalEnvironment)
             }
-            modelBatch.render(transparentObjects, globalEnvironment)
+
+            modelBatch.render(
+                modelClusters/*.filter { it.modelInstances.values.any { isVisible(it) } }*/,
+                globalEnvironment
+            )
 
         }
 
 
-        if (hoverId in 0 until compoundModels.size) {
+        if (hoverId in compoundModels.indices) {
             modelBatch.use(camera) {
                 modelBatch.render(compoundModels[hoverId], highlightedEnvironment)
             }
@@ -233,7 +254,7 @@ open class GameScreen : KtxScreen {
         debugDrawer.begin(camera)
 
         keyInputController?.apply {
-           // dynamicsWorld.debugDrawWorld()
+            dynamicsWorld.debugDrawWorld()
             if (mouseMoved && !dragging) {
                 hoverId = raycastResult(mouseX, mouseY)
                 info {
@@ -245,13 +266,52 @@ open class GameScreen : KtxScreen {
             }
         }
 
-        /*rayTestCB?.apply {
+        rayTestCB?.apply {
             var rayFrom = Vector3()
             var rayTo = Vector3()
             getRayFromWorld(rayFrom)
             getRayToWorld(rayTo)
             dynamicsWorld.debugDrawer.drawLine(rayFrom.toImmutable(), rayTo.toImmutable(), ImmutableColor.PURPLE)
-        }*/
+        }
+
+        // dynamicsWorld.debugDrawWorld()
+        if (hoverId in compoundModels.indices) {
+            compoundModels[hoverId].let {
+                /*dynamicsWorld.debugDrawObject(
+                    it.transform,
+                    it.complexCollisionShape,
+                    ImmutableColor.GREEN.vec3().toMutable()
+                )*/
+                // info { "Attempting to draw bounding sphere ${it.boundingSphere}"}
+                  dynamicsWorld.debugDrawer.drawSphere(it.boundingSphere.let{ it.origin + it.position}.toMutable(), it.boundingSphere.radius, ImmutableColor.RED.vec3().toMutable())
+                debugDrawer.drawBox(
+                    it.transform.getTranslation().toMutable() + it.boundingBox.min,
+                    it.transform.getTranslation().toMutable() + it.boundingBox.max,
+                    ImmutableColor.RED.vec3().toMutable()
+                )
+                debugDrawer.drawBox(
+                    (it.transform.getTranslation() + it.boundingBox.getCenterImmutable() - ImmutableVector3(0.1f)).toMutable(),
+                    (it.transform.getTranslation() + it.boundingBox.getCenterImmutable() + ImmutableVector3(0.1f)).toMutable(),
+                    ImmutableColor.GREEN.vec3().toMutable()
+                )
+            }
+        } else if (hoverId - Short.MAX_VALUE in terrainInstances.indices) {
+            /*terrainInstances[hoverId - Short.MAX_VALUE].let { gameObject ->
+                dynamicsWorld.debugDrawObject(
+                    gameObject.transform,
+                    gameObject.complexCollisionShape,
+                    ImmutableColor.GREEN.vec3().toMutable()
+                )
+            }*/
+        }
+
+        /* terrainInstances.forEach { gameObject ->
+             dynamicsWorld.debugDrawObject(
+                 gameObject.transform,
+                 gameObject.collisionShape,
+                 ImmutableColor.GREEN.vec3().toMutable()
+             )
+         }*/
         debugDrawer.end()
 
         spriteBatch.use {
@@ -264,7 +324,7 @@ open class GameScreen : KtxScreen {
             )
             font.draw(
                 spriteBatch,
-                "x ${(camera.direction.x)}  | y ${(camera.direction.y)} | z ${(camera.direction.z)} | FPS: ${Gdx.graphics.framesPerSecond}",
+                "x ${(camera.direction.x)}  | y ${(camera.direction.y)} | z ${(camera.direction.z)} | FPS: ${Gdx.graphics.framesPerSecond} | Gravity: ${dynamicsWorld.gravity}",
                 10f,
                 camera.viewportHeight - 80f
             )
@@ -284,10 +344,8 @@ open class GameScreen : KtxScreen {
     }
 
 
-
     var rayTestCB: ClosestRayResultCallback? = null
     fun raycastResult(mouseX: Int, mouseY: Int): Int {
-
 
 
         var ray = camera.getPickRay(mouseX.toFloat(), mouseY.toFloat())//TODO Make ImmutableRay
@@ -300,44 +358,44 @@ open class GameScreen : KtxScreen {
             setRayFromWorld(rayFrom)
             setRayToWorld(rayTo)
 
-            dynamicsWorld.collisionWorld.rayTest(rayFrom, rayTo, this)
+            dynamicsWorld.rayTest(rayFrom, rayTo, this)
             if (hasHit()) {
-                var obj = collisionObject
                 //if (!obj.isStaticOrKinematicObject) {
-                    var body = obj as? btRigidBody
-                    body?.apply {
+                var body = collisionObject as? btRigidBody
+                body?.apply {
+                    if (rayCastRequest) {
                         activate()
-                        applyCentralImpulse(ray.direction / 20f)
-                        return obj.userValue
+                        applyCentralImpulse(ray.direction * 3f)
                     }
-               // }
+                    return collisionObject.userValue
+                }
+                // }
             }
         }
 
-            return -1
+        return -1
     }
 
 
-
-    var frustumCulling = false
-    private var position = ImmutableVector3()
-    protected fun isVisible(cam: Camera, instance: RenderableGameObject): Boolean {
+    var frustumCulling = true
+    protected fun isVisible(instance: RenderableGameObject): Boolean {
 
         if (!frustumCulling)
             return true
-        instance.transform.getTranslation()
-        position += instance.boundingBox.getCenter()
-        return cam.frustum.boundsInFrustum(position, instance.boundingBox.getDimensions())
+        var position = instance.transform.getTranslation()
+        position += instance.boundingBox.getCenterImmutable()
+        return camera.frustum.sphereInFrustum(position.toMutable(), instance.boundingSphere.radius)
     }
 
     override fun dispose() {
         clearEntities()
-        dynamicsWorld.dispose()
-        broadphase.dispose()
-        dispatcher.dispose()
-        collisionConfig.dispose()
-        contactListener.dispose()
-        modelBatch.dispose()
+        dynamicsWorld.disposeSafely()
+        broadphase.disposeSafely()
+        dispatcher.disposeSafely()
+        collisionConfig.disposeSafely()
+        contactListener.disposeSafely()
+        modelBatch.disposeSafely()
+
 
     }
 
@@ -355,8 +413,17 @@ open class GameScreen : KtxScreen {
 
 
     fun clearEntities() {
-        compoundModels.forEach { it.dispose() }
+        compoundModels.forEach { dynamicsWorld.removeRigidBody(it.complexBody) }
+        compoundModels.forEach { it.disposeSafely() }
+        compoundModels.clear()
 
+        modelClusters.forEach { it.disposeSafely() }
+        modelClusters.clear()
+
+        transparentObjects.renderables.clear()
+        terrainInstances.forEach { dynamicsWorld.removeRigidBody(it.complexBody) }
+        terrainInstances.forEach { it.disposeSafely() }
+        terrainInstances.clear()
         engine.removeAllEntities()
     }
 
@@ -379,7 +446,7 @@ open class GameScreen : KtxScreen {
             viewportWidth = Gdx.graphics.width.toFloat()
             viewportHeight = Gdx.graphics.height.toFloat()
             fieldOfView = 67f
-            near = 0.5f
+            near = 0.1f
             far = 2000f
             update()
         }
@@ -391,16 +458,17 @@ open class GameScreen : KtxScreen {
         dispatcher = btCollisionDispatcher(collisionConfig)
         broadphase = btDbvtBroadphase()
         constraintSolver = btSequentialImpulseConstraintSolver()
+
         dynamicsWorld = btDiscreteDynamicsWorld(dispatcher, broadphase, constraintSolver, collisionConfig)
         dynamicsWorld.gravity = ImmutableVector3(0, -10f, 0).toMutable()
-
-        contactListener = MyContactListener(compoundModels)
+        dynamicsWorld.latencyMotionStateInterpolation = false
 
         rayTestCB = ClosestRayResultCallback(ImmutableVector3.ZERO.toMutable(), ImmutableVector3.Z.toMutable())
         debugDrawer = DebugDrawer()
         dynamicsWorld.debugDrawer = debugDrawer
-        debugDrawer.debugMode = btIDebugDraw.DebugDrawModes.DBG_DrawAabb
+        debugDrawer.debugMode = btIDebugDraw.DebugDrawModes.DBG_DrawNormals
 
+        contactListener = MyContactListener(compoundModels, terrainInstances)
     }
 
     fun setup() {
@@ -484,44 +552,72 @@ open class GameScreen : KtxScreen {
 
                 if (landscapeDecoded) {
 
-                    for (height in 0 until 4) {
-                        underlayEntities[height] = engine.entity {
+                    val mapWidth = landscapeDecoder.width
+                    val mapHeight = landscapeDecoder.height
+                    for (z in 0 until 4) {
+                        underlayEntities[z] = engine.entity {
                             with<NameComponent> {
-                                name = "landscape_${regionId}_underlay_$height"
+                                name = "landscape_${regionId}_underlay_$z"
                             }
                             with<WorldPositionComponent> {
-                                vector3 = ImmutableVector3(globalX - startX, 0f, globalY - startY)
+                                vector3 = ImmutableVector3(globalX - startX, z, globalY - startY)
                             }
                             with<MeshProviderComponent> {
                                 this.provider =
-                                    { mutableMapOf("underlay_$height" to landscapeDecoder.buildUnderlay(height)) }
+                                    { landscapeDecoder.buildUnderlay(z)?.let { mutableMapOf("underlay_$z" to it) } }
+                            }
+
+                            with<WeightComponent> {
+                                this.weight = 0f
                             }
 
                             with<RS2TileMapComponent> {
                                 tileMap.putAll(landscapeDecoder.tileMap)
                             }
+                            /*with<CollisionShapeComponent> {
+                                this.shapeProvider = { _ ->
+                                    info { "Collision setup for terrain "}
+                                    val tileMap = landscapeDecoder.tileMapaaaaaaaaaaaaaa
+                                    val heightBuffer = BufferUtils.newFloatBuffer(mapWidth * mapHeight)
+                                    tileMap
+                                        .filter { it.key.z == z.toFloat() }
+                                        .forEach { (position, tile) ->
+                                            heightBuffer.put(
+                                                (position.x.toInt() + (position.y.toInt() * mapWidth)),
+                                                tile.data.tileHeight
+                                            )
+                                        }
+                                    btHeightfieldTerrainShape(mapWidth, mapHeight, heightBuffer, 1f, 0f, 4096f, 1, false)
+
+                                }
+                            }*/
+
                         }
 
                     }
 
 
-                    for (height in 0 until 4) {
-                        overlayEntities[height] = engine.entity {
+                    for (z in 0 until 4) {
+                        overlayEntities[z] = engine.entity {
                             with<NameComponent> {
-                                name = "landscape_${regionId}_overlay_$height"
+                                name = "landscape_${regionId}_overlay_$z"
                             }
                             with<WorldPositionComponent> {
-                                vector3 = ImmutableVector3(globalX - startX, 0f, globalY - startY)
+                                vector3 = ImmutableVector3(globalX - startX, z, globalY - startY)
                             }
                             with<MeshProviderComponent> {
                                 this.provider =
-                                    { mutableMapOf("overlay_$height" to landscapeDecoder.buildOverlay(height)) }
+                                    { landscapeDecoder.buildOverlay(z)?.let { mutableMapOf("overlay_$z" to it) } }
+
                             }
 
-
+                            with<WeightComponent> {
+                                this.weight = 0f
+                            }
                             with<RS2TileMapComponent> {
                                 tileMap.putAll(landscapeDecoder.tileMap)
                             }
+
                         }
                     }
 
@@ -534,19 +630,24 @@ open class GameScreen : KtxScreen {
             with<NameComponent> {
                 name = "xyzAxis"
             }
-            with<WorldPositionComponent>()
-            with<RotateComponent>()
-            with<MeshComponent> {
-                val xyz = modelBuilder.createXYZCoordinates(
-                    10f,
-                    emptyMaterial,
-                    (VertexAttributes.Usage.Position or VertexAttributes.Usage.ColorPacked).toLong()
-                )
-                this.gdxMeshes["xyzGdx"] = modelBuilder.use {
-                    xyz.meshes.forEachIndexed { index, mesh ->
-                        modelBuilder.part("xyz_$index", mesh, GL20.GL_TRIANGLES, emptyMaterial)
-                    }
+
+            with<WeightComponent> {
+                this.weight = 0f
+            }
+            with<MeshProviderComponent> {
+                this.provider = {
+                    val xyz = modelBuilder.createXYZCoordinates(
+                        10f,
+                        emptyMaterial,
+                        (VertexAttributes.Usage.Position or VertexAttributes.Usage.ColorPacked).toLong()
+                    )
+                    mutableMapOf("xyzGdx" to modelBuilder.use {
+                        xyz.meshes.forEachIndexed { index, mesh ->
+                            modelBuilder.part("xyz_$index", mesh, GL20.GL_TRIANGLES, emptyMaterial)
+                        }
+                    })
                 }
+
             }
         }
 
@@ -556,9 +657,8 @@ open class GameScreen : KtxScreen {
     }
 
     companion object {
-        val OBJECT_FLAG = (1 shl 9)
-        val ALL_FLAG = -1
-        val GROUND_FLAG = (1 shl 8)
+        val OBJECT_FLAG = 4
+        val GROUND_FLAG = 2
     }
 
 }
@@ -586,6 +686,7 @@ class GameView : KtxGame<Screen>() {
     override fun create() {
 
         Bullet.init(false, true)
+
         VisUI.load(VisUI.SkinScale.X2)
         Scene2DSkin.defaultSkin = VisUI.getSkin()
         KtxAsync.initiate()

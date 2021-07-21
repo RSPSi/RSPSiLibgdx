@@ -2,21 +2,15 @@ package com.rspsi.game
 
 import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.graphics.Camera
-import com.badlogic.gdx.math.Quaternion
-import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.scenes.scene2d.Stage
-import com.badlogic.gdx.scenes.scene2d.ui.Stack
-import com.badlogic.gdx.utils.Align
-import com.badlogic.gdx.utils.Scaling
+import com.badlogic.gdx.scenes.scene2d.ui.Tree
 import com.badlogic.gdx.utils.viewport.ExtendViewport
-import com.kotcrab.vis.ui.widget.VisImage
+import com.kotcrab.vis.ui.widget.VisLabel
 import com.kotcrab.vis.ui.widget.VisTextButton
-import com.rspsi.ext.visImage
 import ktx.actors.*
 import ktx.log.info
 import ktx.scene2d.*
 import ktx.scene2d.vis.*
-import javax.swing.GroupLayout
 
 
 class GameUI(private val camera: Camera) {
@@ -34,10 +28,29 @@ class GameUI(private val camera: Camera) {
     var minimapUI: Minimap? = null
     var testButton: VisTextButton? = null
 
+    class ClusterTree : Tree.Node<RenderableLabel, GameObjectCluster, KVisTree> {
+        constructor(cluster: GameObjectCluster) : super(KVisTree("default")) {
+            actor.add(RenderableLabel(cluster.validTypes.toString()))
+            cluster.instances.forEach { name, renderable ->
+                actor.add(RenderableLabel(name))
+            }
+            value = cluster
+        }
+    }
+    class RenderableLabel : Tree.Node<RenderableLabel, String, VisLabel> {
+        constructor(text: String) : super(VisLabel(text)) {
+            value = text
+        }
+    }
+    lateinit var tree: KVisTree
+
     fun init() {
 
         gameStage.actors.clear()
         gameStage.actors {
+            tree = visTree {
+                setFillParent(true)
+            }
             testButton = visTextButton("Test") {
                 this.setPosition(50f, 50f)
 

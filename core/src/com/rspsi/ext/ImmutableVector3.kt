@@ -2,15 +2,11 @@ package com.rspsi.ext
 
 import com.badlogic.gdx.math.MathUtils
 import com.badlogic.gdx.math.Quaternion
-import com.badlogic.gdx.math.Vector2
 import com.badlogic.gdx.math.Vector3
 import ktx.math.ImmutableVector
 import ktx.math.ImmutableVector2
-import ktx.math.toImmutable
 import java.util.*
 import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.math.sqrt
 
 open class ImmutableVector3(val x: Float, val y: Float, val z: Float) : ImmutableVector<ImmutableVector3> {
@@ -19,9 +15,9 @@ open class ImmutableVector3(val x: Float, val y: Float, val z: Float) : Immutabl
     constructor() : this(ZERO)
     constructor(fillWith: Float) : this(fillWith, fillWith, fillWith)
     constructor(vec2: ImmutableVector2, z: Float) : this(vec2.x, vec2.y, z)
-    constructor(vec3: ImmutableVector3): this(vec3.x, vec3.y, vec3.z)
-    constructor(vec3: Vector3): this(vec3.x, vec3.y, vec3.z)
-    constructor(x: Number, y: Number, z: Number): this(x.toFloat(), y.toFloat(), z.toFloat())
+    constructor(vec3: ImmutableVector3) : this(vec3.x, vec3.y, vec3.z)
+    constructor(vec3: Vector3) : this(vec3.x, vec3.y, vec3.z)
+    constructor(x: Number, y: Number, z: Number) : this(x.toFloat(), y.toFloat(), z.toFloat())
 
     companion object {
         /** Vector zero */
@@ -66,7 +62,8 @@ open class ImmutableVector3(val x: Float, val y: Float, val z: Float) : Immutabl
 
     override fun dst2(vector: ImmutableVector3): Float = Vector3.dst2(x, y, z, vector.x, vector.y, vector.z)
 
-    override fun epsilonEquals(other: ImmutableVector3, epsilon: Float) = toMutable().epsilonEquals(other.x, other.y, other.z, epsilon)
+    override fun epsilonEquals(other: ImmutableVector3, epsilon: Float) =
+        toMutable().epsilonEquals(other.x, other.y, other.z, epsilon)
 
     override fun inc(): ImmutableVector3 = ImmutableVector3(x + 1, y + 1, z + 1)
 
@@ -74,7 +71,8 @@ open class ImmutableVector3(val x: Float, val y: Float, val z: Float) : Immutabl
 
     override fun unaryMinus(): ImmutableVector3 = ImmutableVector3(-x, -y, -z)
 
-    override fun isOnLine(other: ImmutableVector3, epsilon: Float): Boolean = toMutable().isOnLine(other.toMutable(), epsilon)
+    override fun isOnLine(other: ImmutableVector3, epsilon: Float): Boolean =
+        toMutable().isOnLine(other.toMutable(), epsilon)
 
     override fun withClamp2(min2: Float, max2: Float): ImmutableVector3 {
         val minSq: Float = min2 * min2
@@ -101,7 +99,8 @@ open class ImmutableVector3(val x: Float, val y: Float, val z: Float) : Immutabl
         return if (oldLen2 == 0f || oldLen2 == length2) this else times(sqrt(length2 / oldLen2))
     }
 
-    override fun withLerp(target: ImmutableVector3, alpha: Float): ImmutableVector3 = toMutable().lerp(target.toMutable(), alpha).toImmutable()
+    override fun withLerp(target: ImmutableVector3, alpha: Float): ImmutableVector3 =
+        toMutable().lerp(target.toMutable(), alpha).toImmutable()
 
     override fun withLimit2(limit2: Float): ImmutableVector3 = toMutable().limit2(limit2).toImmutable()
 
@@ -115,21 +114,29 @@ open class ImmutableVector3(val x: Float, val y: Float, val z: Float) : Immutabl
 
     override operator fun times(scalar: Float): ImmutableVector3 = this.times(scalar, scalar, scalar)
 
-    operator fun times(scalar: Number): ImmutableVector3 = this.times(scalar.toFloat(), scalar.toFloat(), scalar.toFloat())
+    operator fun times(scalar: Number): ImmutableVector3 =
+        this.times(scalar.toFloat(), scalar.toFloat(), scalar.toFloat())
 
     override operator fun minus(other: ImmutableVector3) = this.minus(other.x, other.y, other.z)
 
     fun crs(otherX: Float, otherY: Float, otherZ: Float): Float = x * otherX - y * otherY - z * otherZ
 
-    fun cross(vector: ImmutableVector3): ImmutableVector3 = ImmutableVector3(y * vector.z - z * vector.y, z * vector.x - x * vector.z, x * vector.y - y * vector.x)
+    fun cross(vector: ImmutableVector3): ImmutableVector3 =
+        ImmutableVector3(y * vector.z - z * vector.y, z * vector.x - x * vector.z, x * vector.y - y * vector.x)
 
-    fun minus(deltaX: Float = 0f, deltaY: Float = 0f, deltaZ: Float = 0f): ImmutableVector3 = ImmutableVector3(x - deltaX, y - deltaY, z - deltaZ)
-    fun times(deltaX: Float = 0f, deltaY: Float = 0f, deltaZ: Float = 0f): ImmutableVector3 = ImmutableVector3(x * deltaX, y * deltaY, z * deltaZ)
-    fun plus(deltaX: Float = 0f, deltaY: Float = 0f, deltaZ: Float = 0f): ImmutableVector3 = ImmutableVector3(x + deltaX, y + deltaY, z + deltaZ)
+    fun minus(deltaX: Float = 0f, deltaY: Float = 0f, deltaZ: Float = 0f): ImmutableVector3 =
+        ImmutableVector3(x - deltaX, y - deltaY, z - deltaZ)
+
+    fun times(deltaX: Float = 0f, deltaY: Float = 0f, deltaZ: Float = 0f): ImmutableVector3 =
+        ImmutableVector3(x * deltaX, y * deltaY, z * deltaZ)
+
+    fun plus(deltaX: Float = 0f, deltaY: Float = 0f, deltaZ: Float = 0f): ImmutableVector3 =
+        ImmutableVector3(x + deltaX, y + deltaY, z + deltaZ)
 
 
     /** Returns the angle in radians of this vector relative to the [reference]. Angles are towards the positive y-axis. (typically counter-clockwise) */
-    fun angleRad(reference: ImmutableVector3 = ImmutableVector3.X): Float = angleRad(reference.x, reference.y, reference.z)
+    fun angleRad(reference: ImmutableVector3 = ImmutableVector3.X): Float =
+        angleRad(reference.x, reference.y, reference.z)
 
     /** Returns the angle in radians of this vector relative to the ([referenceX], [referenceY]) reference. Angles are towards the positive y-axis. (typically counter-clockwise) */
     fun angleRad(referenceX: Float, referenceY: Float, referenceZ: Float): Float {
@@ -176,6 +183,58 @@ open class ImmutableVector3(val x: Float, val y: Float, val z: Float) : Immutabl
 inline fun ImmutableVector3.toMutable() = Vector3(x, y, z)
 inline fun Vector3.toImmutable() = ImmutableVector3(x, y, z)
 
+fun ImmutableVector3.isClockwise(): Boolean {
+    val polygon = floatArrayOf(x, y, z)
+    var offset = 0
+    var count = 3
+    var area = 0f
+    val last = offset + count - 2
+    var x1 = polygon[last]
+    var y1 = polygon[last + 1]
+    var i = offset
+    while (i <= last) {
+        val x2 = polygon[i]
+        val y2 = polygon[i + 1]
+        area += x1 * y2 - x2 * y1
+        x1 = x2
+        y1 = y2
+        i += 2
+    }
+    return area < 0
+}
+
+fun ImmutableVector3.ensureCCW(): ImmutableVector3 {
+    val polygon = floatArrayOf(x, y, z)
+
+    var offset = 0
+    var count = 3
+    if (isClockwise()) {
+        val lastX = offset + count - 3
+        var i = offset
+        val n = offset + count / 3
+        while (i < n) {
+            val other = lastX - i
+            val x = polygon[i]
+            val y = polygon[i + 1]
+            val z = polygon[i + 2]
+            polygon[i] = polygon[other]
+            polygon[i + 1] = polygon[other + 1]
+            polygon[i + 2] = polygon[other + 2]
+            polygon[other] = x
+            polygon[other + 1] = y
+            polygon[other + 2] = z
+            i += 3
+        }
+    }
+    return ImmutableVector3(polygon[0], polygon[1], polygon[2])
+}
+
+
+fun Vector3.set(immutableVector3: ImmutableVector3) = set(immutableVector3.toMutable())
+
+infix fun ImmutableVector3.withX(x: Float): ImmutableVector3 = ImmutableVector3(x, this.y, this.z)
+infix fun ImmutableVector3.withY(y: Float): ImmutableVector3 = ImmutableVector3(this.x, y, this.z)
+infix fun ImmutableVector3.withZ(z: Float): ImmutableVector3 = ImmutableVector3(this.x, this.y, z)
 
 /** Calculates the 2D cross product between this and the [other] vector */
 inline infix fun ImmutableVector3.x(other: ImmutableVector3): Float = crs(other.x, other.y, other.z)
@@ -190,7 +249,33 @@ fun Quaternion.getAxisAngle(axis: ImmutableVector3) = getAxisAngle(axis.toMutabl
 fun Quaternion.getAxisAngleRad(axis: ImmutableVector3) = getAxisAngleRad(axis.toMutable())
 fun Quaternion.getAngleAroundRad(axis: ImmutableVector3) = getAngleAroundRad(axis.toMutable())
 fun Quaternion.transform(v: ImmutableVector3) = transform(v.toMutable()).toImmutable()
-fun Quaternion.setFromAxis(vector: ImmutableVector3, degrees: Float): Quaternion = setFromAxis(vector.toMutable(), degrees)
-fun Quaternion.setFromAxisRad(vector: ImmutableVector3, radians: Float): Quaternion = setFromAxisRad(vector.toMutable(), radians)
-fun Quaternion.setFromCross(v1: ImmutableVector3, v2: ImmutableVector3): Quaternion = setFromCross(v1.toMutable(), v2.toMutable())
-fun Quaternion.getSwingTwist(axis: ImmutableVector3, swing: Quaternion, twist: Quaternion) = getSwingTwist(axis.toMutable(), swing, twist)
+fun Quaternion.setFromAxis(vector: ImmutableVector3, degrees: Float): Quaternion =
+    setFromAxis(vector.toMutable(), degrees)
+
+fun Quaternion.setFromAxisRad(vector: ImmutableVector3, radians: Float): Quaternion =
+    setFromAxisRad(vector.toMutable(), radians)
+
+fun Quaternion.setFromCross(v1: ImmutableVector3, v2: ImmutableVector3): Quaternion =
+    setFromCross(v1.toMutable(), v2.toMutable())
+
+fun Quaternion.getSwingTwist(axis: ImmutableVector3, swing: Quaternion, twist: Quaternion) =
+    getSwingTwist(axis.toMutable(), swing, twist)
+
+
+fun Vector3.add(immutableVector3: ImmutableVector3): Vector3 = add(immutableVector3.toMutable())
+
+fun ImmutableVector3.surrounding(
+    radius: Float = 1f,
+    step: Float = 1f,
+    includeY: Boolean = true
+): MutableList<ImmutableVector3> {
+    val positions = mutableListOf<ImmutableVector3>()
+    repeat(if (includeY) (radius * 2 / step).toInt() else 0) { y ->
+        repeat((radius * 2 / step).toInt()) { x ->
+            repeat((radius * 2 / step).toInt()) { z ->
+                positions.add(this + (x withY y withZ z))
+            }
+        }
+    }
+    return positions
+}

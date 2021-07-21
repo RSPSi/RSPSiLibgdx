@@ -4,8 +4,10 @@ import com.badlogic.ashley.core.Component
 import com.badlogic.ashley.core.Family
 import com.badlogic.gdx.graphics.g3d.Model
 import com.badlogic.gdx.graphics.g3d.ModelCache
+import com.badlogic.gdx.graphics.g3d.ModelInstance
 import com.badlogic.gdx.graphics.g3d.decals.Decal
 import com.badlogic.gdx.math.Quaternion
+import com.badlogic.gdx.physics.bullet.collision.btCollisionShape
 import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody
 import com.rspsi.ext.ImmutableVector3
 import ktx.ashley.allOf
@@ -32,8 +34,8 @@ class DecalComponent: Component {
     lateinit var decal: Decal
 }
 
-class RigidBodyComponent: Component {
-    lateinit var rigidBody: btRigidBody
+class CollisionShapeComponent: Component {
+    var shapeProvider: (List<ModelInstance>) -> btCollisionShape? = {_ -> null}
 }
 
 class MeshComponent : Component {

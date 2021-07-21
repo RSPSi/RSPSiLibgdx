@@ -5,8 +5,10 @@ import com.badlogic.gdx.Input
 import com.badlogic.gdx.graphics.Camera
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute
 import com.badlogic.gdx.graphics.g3d.utils.FirstPersonCameraController
+import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.utils.IntIntMap
 import com.rspsi.ext.ImmutableColor
+import com.rspsi.ext.ImmutableVector3
 import com.rspsi.ext.toMutable
 import ktx.log.info
 
@@ -51,7 +53,7 @@ class MainInputController(camera: Camera) : FirstPersonCameraController(camera) 
 
     override fun touchDown(screenX: Int, screenY: Int, pointer: Int, button: Int): Boolean {
         return if(!gameUI.gameStage.touchDown(screenX, screenY, pointer, button)){
-
+                gameScreen.rayCastRequest = true
                 true
             } else
                 super.touchDown(screenX, screenY, pointer, button)
@@ -69,6 +71,7 @@ class MainInputController(camera: Camera) : FirstPersonCameraController(camera) 
     }
 
     override fun touchDragged(screenX: Int, screenY: Int, pointer: Int): Boolean {
+        gameScreen.rayCastRequest = false
         mouseMoved = true
         mouseX = screenX
         mouseY = screenY
@@ -103,7 +106,6 @@ class MainInputController(camera: Camera) : FirstPersonCameraController(camera) 
 
             containsKey(Input.Keys.X, true) {
                 gameScreen.directionalLight.setDirection(gameScreen.camera.direction)
-                gameScreen.dirty = true
             }
             containsKey(Input.Keys.NUMPAD_ADD){
                 curVelocity += 0.5f
@@ -137,14 +139,10 @@ class MainInputController(camera: Camera) : FirstPersonCameraController(camera) 
             }
             containsKey(Input.Keys.U) {
                 keys.remove(Input.Keys.U, 0)
-                gameScreen.engine.removeAllEntities()
-                gameScreen.terrainInstances.fill(null)
-                gameScreen.overlayEntities.fill(null)
-                gameScreen.underlayEntities.fill(null)
+                gameScreen.clearEntities()
                 info {
                     "Cleared entities"
                 }
-                gameScreen.dirty = true
 
 
             }
@@ -155,10 +153,19 @@ class MainInputController(camera: Camera) : FirstPersonCameraController(camera) 
             }
             containsKey(Input.Keys.V, true) {
 
+                gameScreen.dynamicsWorld.gravity = ImmutableVector3(0f, -10f, 0f).toMutable()
+                gameScreen.dynamicsWorld.applyGravity()
+                //gameScreen.dirty = true
+            }
+            containsKey(Input.Keys.B, true) {
+
+                gameScreen.dynamicsWorld.gravity = ImmutableVector3(0f, 0f, 0f).toMutable()
+                gameScreen.dynamicsWorld.applyGravity()
                 //gameScreen.dirty = true
             }
             containsKey(Input.Keys.K, true) {
-               // gameScreen.dirty = true
+               gameScreen.dynamicsWorld.gravity = ImmutableVector3(0f, 10f, 0f).toMutable()
+                gameScreen.dynamicsWorld.applyGravity()
             }
             containsKey(Input.Keys.M, true) {
                 mode = mode.next()
@@ -168,7 +175,6 @@ class MainInputController(camera: Camera) : FirstPersonCameraController(camera) 
             }
             containsKey(Input.Keys.Z, true) {
                 gameScreen.directionalLight.set(0.2f, 0.2f, 0.2f, 5f, -10f, 5f)
-                gameScreen.dirty = true
             }
         }
     }

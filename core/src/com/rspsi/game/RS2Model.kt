@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.g3d.attributes.BlendingAttribute
 import com.badlogic.gdx.graphics.g3d.utils.MeshPartBuilder
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder
 import com.badlogic.gdx.graphics.g3d.utils.shapebuilders.ArrowShapeBuilder
+import com.badlogic.gdx.math.EarClippingTriangulator
 import com.badlogic.gdx.math.Matrix4
 import com.brashmonkey.spriter.Calculator.sqrt
 import com.displee.io.impl.InputBuffer
@@ -84,6 +85,7 @@ open class RS2Model(val id: Int, val header: RS2ModelHeader) {
             decodeTextureData()
             computeTextureUVCoordinates()
         }
+        vertices.forEach { it.position = it.position.ensureCCW() }
         return this
     }
 
@@ -201,9 +203,7 @@ open class RS2Model(val id: Int, val header: RS2ModelHeader) {
     }
 
     open fun build(transform: Matrix4? = null): Model {
-
         return ModelBuilder().use { modelBuilder ->
-
 
             if(faces.any { it.type >= 0 && it.textureId < 0 && it.transparency >= 1f }) {
                 val nonTextureMeshBuilder = modelBuilder.part(
@@ -357,18 +357,11 @@ open class RS2Model(val id: Int, val header: RS2ModelHeader) {
 
             var surfaceNormal = getSurfaceNormal(face)
 
-            if(surfaceNormal.z < 0f)
-                surfaceNormal *= ImmutableVector3(1f, 1f, -1f)
-
             for (vert in arrayOf(face.a, face.b, face.c)) {
                 with(vertices[vert]) {
 
                     if (face.renderType and 1 == 0) {
                         normal += surfaceNormal
-                    } else {
-                        //normal = surfaceNormal * ImmutableVector3(x, y, z)
-                        //normal += surfaceNormal
-                        //normal += surfaceNormal.normalized
                     }
                 }
             }

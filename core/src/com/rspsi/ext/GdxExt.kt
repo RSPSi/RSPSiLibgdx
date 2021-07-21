@@ -5,12 +5,16 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion
 import com.badlogic.gdx.graphics.g3d.Model
 import com.badlogic.gdx.graphics.g3d.ModelBatch
 import com.badlogic.gdx.graphics.g3d.ModelCache
+import com.badlogic.gdx.graphics.g3d.Renderable
+import com.badlogic.gdx.graphics.g3d.model.MeshPart
 import com.badlogic.gdx.graphics.g3d.model.Node
+import com.badlogic.gdx.graphics.g3d.utils.MeshBuilder
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder
 import com.badlogic.gdx.math.Matrix4
+import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.math.collision.BoundingBox
+import com.badlogic.gdx.utils.GdxRuntimeException
 import kotlin.contracts.ExperimentalContracts
-import kotlin.contracts.contract
 
 
 fun emptyTextureRegion(): TextureRegion {
@@ -23,7 +27,7 @@ fun emptyTextureRegion(): TextureRegion {
     return TextureRegion(texture, 0, 0, 1, 1)
 }
 
-fun Camera.center(boundary: BoundingBox, offset: ImmutableVector3 = ImmutableVector3.ZERO ): ImmutableVector3 = (boundary.getCenter() + this.position)
+fun Camera.center(boundary: BoundingBox, offset: ImmutableVector3 = ImmutableVector3.ZERO ): ImmutableVector3 = (boundary.getCenterImmutable() + this.position)
 
 inline fun <B : ModelBatch> B.use(camera: Camera? = null, action: (B) -> Unit) {
     begin(camera)
@@ -31,7 +35,6 @@ inline fun <B : ModelBatch> B.use(camera: Camera? = null, action: (B) -> Unit) {
     end()
 }
 
-@OptIn(ExperimentalContracts::class)
 inline fun <B : ModelCache> B.use(camera: Camera? = null, action: B.() -> Unit) {
     begin(camera)
     action(this)
@@ -84,7 +87,11 @@ fun Pixmap.setColor(color: ImmutableColor) {
     this.setColor(color.toMutable())
 }
 
+fun BoundingBox.getMinImmutable(): ImmutableVector3 = min.toImmutable()
+fun BoundingBox.getMaxImmutable(): ImmutableVector3 = max.toImmutable()
+fun BoundingBox.getCenterImmutable(): ImmutableVector3 = this.getCenter(Vector3()).toImmutable()
 fun BoundingBox.getDimensionsImmutable(): ImmutableVector3 = ImmutableVector3(width, height, depth)
+fun BoundingBox.getHalfExtents(): ImmutableVector3 =  (getDimensionsImmutable() / 2f)
 
 fun mergeMeshes(meshes: MutableList<Mesh>, transformations: MutableList<Matrix4?>): Mesh? {
     if (meshes.size == 0) return null
@@ -220,3 +227,8 @@ fun copyMesh(meshToCopy: Mesh, isStatic: Boolean, removeDuplicates: Boolean, usa
     result.setIndices(indices)
     return result
 }
+
+
+fun Matrix4.isIdentity() = this == Matrix4().idt()
+
+

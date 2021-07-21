@@ -41,6 +41,11 @@ class RS2LandscapeDecoder {
         context.bindSingleton { this }
     }
 
+
+    val width = 64
+    val height = 64
+
+
     private val cacheLibrary: CacheLibrary = context.inject()
     private val floorDecoder: RS2FloorDecoder = context.inject()
 
@@ -50,12 +55,9 @@ class RS2LandscapeDecoder {
     var overlayTextures: Array<Texture?> = arrayOfNulls(4)
     var underlayTextures: Array<Texture?> = arrayOfNulls(4)
 
-    val hslGlobal = Array(65) { _ -> HSLAccumulator() }
+    val hslGlobal = Array(height + 1) { _ -> HSLAccumulator() }
     fun buildColours() {
 
-
-        val sizeX = 64//tileMap.keys.maxOf { it.x }.toInt()
-        val sizeY = 64//tileMap.keys.maxOf { it.y }.toInt()#
 
         for (z in 0 until 4) {
 
@@ -67,8 +69,8 @@ class RS2LandscapeDecoder {
                 it.saturation = 0
             }
 
-            for (x in -5 until sizeX + 5) {
-                for (y in 0 until sizeY) {
+            for (x in -5 until width + 5) {
+                for (y in 0 until height) {
                     val maxX = ImmutableVector3(x + 5, y, z)
                     val minX = ImmutableVector3(x - 5, y, z)
 
@@ -119,9 +121,9 @@ class RS2LandscapeDecoder {
 
 
                 // for (centerX in 0 until sizeX) {
-                if (x in 0 until sizeX) {
+                if (x in 0 until width) {
                     val accumulator = HSLAccumulator()
-                    for (y in -5 until sizeY + 5) {
+                    for (y in -5 until height + 5) {
                         val maxY = y + 5
                         val minY = y - 5
 
@@ -132,7 +134,7 @@ class RS2LandscapeDecoder {
                             continue
                         }
 
-                        if (maxY in 0 until sizeY) {
+                        if (maxY in 0 until height) {
                             //  if (z == 0)
                             //  info { "adjusting + with ${hslGlobal[maxY]} $maxY" }
                             hslGlobal[maxY].let {
@@ -148,7 +150,7 @@ class RS2LandscapeDecoder {
 
                         }
 
-                        if (minY in 0 until sizeY) {
+                        if (minY in 0 until height) {
                             //  if (z == 0)
                             //   info { "adjusting - with ${hslGlobal[minY]} $minY" }
                             hslGlobal[minY].let {
@@ -350,7 +352,7 @@ class RS2LandscapeDecoder {
     }
 
 
-    fun buildUnderlay(z: Int): Model {
+    fun buildUnderlay(z: Int): Model? {
         val underlayPixmap = getUnderlayPixmap(z)
         underlayTextures[z] = Texture(underlayPixmap)
         val modelBuilder = ModelBuilder()
@@ -358,6 +360,8 @@ class RS2LandscapeDecoder {
         val underlayTileCount =
             tileMap.filter { (pos, tile) -> pos.z == z.toFloat() && tile.data.underlayId > 0 }.size
 
+        if(underlayTileCount == 0)
+            return null
 
         return modelBuilder.use {
 
@@ -367,6 +371,12 @@ class RS2LandscapeDecoder {
                 VertexAttribute.ColorPacked()
             )//, VertexAttribute.Normal())
 
+            val part = modelBuilder.part(
+                "underlay_${z}",
+                GL20.GL_TRIANGLES,
+                underlayVertexAttributes,
+                underlayMaterial
+            )
             tileMap
                 .filter { (pos, tile) -> pos.z == z.toFloat() && tile.data.underlayId > 0 }
                 .forEach { (tilePosition, tile) ->
@@ -409,18 +419,10 @@ class RS2LandscapeDecoder {
                     }
 
                     var quad = 0
-                    vertices.chunked(6).forEach { vertInfo ->
-
-                        val part = modelBuilder.part(
-                            "underlay_${z}_$quad",
-                            GL20.GL_TRIANGLES,
-                            underlayVertexAttributes,
-                            underlayMaterial
-                        )
-
-                        quad++
+                    vertices.chunked(4).forEach { vertInfo ->
                         part.triangle(vertInfo[2], vertInfo[1], vertInfo[0], underlayVertexAttributes)
                         part.triangle(vertInfo[2], vertInfo[3], vertInfo[1], underlayVertexAttributes)
+                        quad++
                     }
                 }
         }
@@ -428,12 +430,17 @@ class RS2LandscapeDecoder {
 
     }
 
-    fun buildOverlay(z: Int): Model {
+    fun buildOverlay(z: Int): Model? {
         val overlayPixmap = getOverlayUV(z)
         overlayTextures[z] = Texture(overlayPixmap)
         val floorDecoder: RS2FloorDecoder = context.inject()
         val textureProvider: RS2TextureProvider = context.inject()
 
+        val overlayTileCount =
+            tileMap.filter { (pos, tile) -> pos.z == z.toFloat() && tile.data.overlayId > 0 }.size
+
+        if(overlayTileCount == 0)
+            return null
 
         val modelBuilder = ModelBuilder()
 
@@ -553,9 +560,6 @@ class RS2LandscapeDecoder {
 
     fun buildLighting() {
 
-        val sizeX = tileMap.keys.maxOf { it.x }.toInt()
-        val sizeY = tileMap.keys.maxOf { it.y }.toInt()
-
         val shading = mutableMapOf<ImmutableVector3, Int>()//TODO
         val byte0: Byte = 96
         val diffusion = '\u0300'
@@ -568,8 +572,8 @@ class RS2LandscapeDecoder {
 
         val tileHeights = tileMap.mapValues { it.value.data.tileHeight.toInt() }
         for (z in 0 until 4)
-            for (y in 1 until sizeY) {
-                for (x in 1 until sizeX) {
+            for (y in 1 until height) {
+                for (x in 1 until width) {
 
                     val position = ImmutableVector3(x, y, z)
 

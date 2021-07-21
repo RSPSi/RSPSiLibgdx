@@ -232,8 +232,8 @@ class RS2ObjectsDecoder {
                 val l2: Float = aY + (bY - aY) * (x + 64f) / 128f
                 val i3: Float = dY + (cY - dY) * (x + 64f) / 128f
                 val j3 = l2 + (i3 - l2) * (z + 64f) / 128f
-                val yOffset = j3 - avgHeight
-                vertex.position += ImmutableVector3(0f, 0f, yOffset)
+                val zOffset = j3 - avgHeight
+                vertex.position += ImmutableVector3(0f, 0f, zOffset)
             }
         }
         return mdl.build(transform)
@@ -297,7 +297,7 @@ class RS2ObjectsDecoder {
                     Matrix4().translate(
                         ImmutableVector3(
                             0f,
-                            (tileHeight - 240f) / 240f,
+                            ((tileHeight - 240f) / 240f) + 0.5f,
                             0f
                         )
                     )
@@ -520,16 +520,6 @@ class RS2ObjectsDecoder {
                 this.rs2Object = gameObject
             }
 
-            with<RotateComponent> {
-                // pitch = 180f
-                yaw = 0f
-                roll = 0f
-            }
-
-            with<ScaleComponent> {
-                //   vector3 = ImmutableVector3(1f, -1f, 1f)
-            }
-
             with<RS2ModelComponent> {
                 this.models.putAll(modelsNamed)
             }
@@ -539,14 +529,6 @@ class RS2ObjectsDecoder {
     }
 
 
-    private fun surroundingTiles(position: ImmutableVector3, radius: Int = 1): MutableList<ImmutableVector3> {
-        val positions = mutableListOf<ImmutableVector3>()
-        for (x in -radius..radius)
-            for (y in -radius..radius) {
-                positions.add(position + (x withY y withZ 0))
-            }
-        return positions
-    }
 
     private fun surroundingTilesNE(position: ImmutableVector3, radius: Int = 1): MutableList<ImmutableVector3> {
 
@@ -619,7 +601,7 @@ class RS2ObjectsDecoder {
 
             val averageTileHeight = getAverageHeight(position, tileMap, 1)
             val entitiesOnTile = findEntities(position, RS2Object.Types.ANY)
-            val adjacentPositions = surroundingTiles(position)
+            val adjacentPositions = position.surrounding(radius = 1f, step = 1f, includeY = false)
             entitiesOnTile.forEach { entity ->
 
                 val rs2ObjectComponent = entity[mapperFor<RS2ObjectComponent>()]
@@ -709,12 +691,20 @@ class RS2Object(
     }
 
     object Types {
+        fun getGroup(type: Int): IntRange {
+            return validGroups.firstOrNull { it.contains(type) } ?: UNREGISTERED
+        }
+
+        val UNREGISTERED = -1..-1
         val ANY = 0..22
         val WALL = 0..3
         val WALL_DECORATION = 4..8
-        val ROOF_PIECE = 12..21
         val INTERACTIVE = 9..11
+        val ROOF_PIECE = 12..21
         val FLOOR = 22..22
+
+        //TODO This should probably be elsewhere
+        val validGroups = mutableListOf(WALL, WALL_DECORATION, INTERACTIVE, ROOF_PIECE,  FLOOR)
     }
 
 

@@ -6,6 +6,7 @@ import ktx.math.ImmutableVector2
 import ktx.math.plus
 import ktx.math.toImmutable
 import java.awt.Dimension
+import ktx.math.compareTo as compareToVec3
 
 
 infix fun ImmutableVector2.north(size: Int) = this + ImmutableVector2(0f, 1f * size)
@@ -70,8 +71,8 @@ fun Matrix4.set(translation: ImmutableVector3?, rotation: Quaternion?, scale: Im
 
 fun Frustum.sphereInFrustum(center: ImmutableVector3, radius: Float): Boolean = this.sphereInFrustum(center.toMutable(), radius)
 
-fun BoundingBox.getCenter(): ImmutableVector3 = this.getCenter(Vector3()).toImmutable()
-fun BoundingBox.getDimensions(): ImmutableVector3 = this.getDimensions(Vector3()).toImmutable()
 fun Frustum.boundsInFrustum( center: ImmutableVector3, dimensions: ImmutableVector3): Boolean = this.boundsInFrustum(center.toMutable(), dimensions.toMutable())
 
 infix fun Number.withY(y: Number): ImmutableVector2 = ImmutableVector2(this.toFloat(), y.toFloat())
+
+fun Vector3.compareTo(immutableVector3: ImmutableVector3): Int = compareToVec3(immutableVector3.toMutable())

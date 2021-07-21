@@ -93,14 +93,13 @@ class RS2TextureProvider {
 
         textureDefinitions.forEach { (id, textureDef) ->
             val pixmap = textureDef.getPixmap()
-            val data = PixmapTextureData(pixmap, pixmap.format, false, false)
+            val data = PixmapTextureData(pixmap, pixmap.format, true, true)
             val texture = Texture(data)
 
             texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear)
             texture.setWrap(Texture.TextureWrap.ClampToEdge, Texture.TextureWrap.ClampToEdge)
 
             textureAtlas.addRegion("oldschool_texture_$id", texture, 0, 0, textureDef.width, textureDef.height)
-            pixmap.dispose()
         }
         return textureAtlas
     }

@@ -35,7 +35,7 @@ private fun RS2Vertex.meshPartVertexInfo(vertexAttributes: VertexAttributes): Me
     if(Usage.ColorPacked in vertexUsage)
         vertexInfo.setCol(colour.toMutable())
     if(Usage.Normal in vertexUsage && normal != ImmutableVector3.ZERO)
-        vertexInfo.setNor(normal.flipYZ().normalized.toMutable())
+        vertexInfo.setNor(normal.flipYZ().toMutable())
 
     //if(Usage.BoneWeight in vertexUsage)
    //if(Usage.BiNormal in vertexUsage)
